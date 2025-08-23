@@ -22,7 +22,9 @@ fn main() {
         .collect();
 
     let output = match args {
-        args if args.all && args.permissions => output_with_permissions(&mut filtered_items, show_all),
+        args if args.all && args.permissions => {
+            output_with_permissions(&mut filtered_items, show_all)
+        }
         args if args.all => output(&filtered_items, show_all),
         args if args.permissions => output_with_permissions(&mut filtered_items, hide_hidden),
         _ => output(&filtered_items, hide_hidden),
