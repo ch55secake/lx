@@ -30,28 +30,82 @@ pub struct DirectoryItem {
 /// Find items within a directory and return back a vector with the directory items.
 pub fn find_directory_items(directory: &String) -> Vec<DirectoryItem> {
     let directory = path::Path::new(directory);
-    let entries = fs::read_dir(directory).unwrap();
-    entries
-        .flatten()
-        .filter_map(|entry| {
-            let name = entry.file_name().to_str()?.to_owned();
-            let is_dir = entry.file_type().ok()?.is_dir();
-            let is_hidden = is_file_hidden(entry.file_name());
-            let file_permissions = entry.metadata().ok()?.permissions().mode();
-            let size = entry.metadata().ok()?.len();
-            let created_at = system_time_to_local_date(entry.metadata().ok()?.created().ok()?);
+    if let Ok(entries) = fs::read_dir(directory) {
+        entries
+            .flatten()
+            .filter_map(|entry| {
+                let name = entry.file_name().to_str()?.to_owned();
+                let is_dir = entry.file_type().ok()?.is_dir();
+                let is_hidden = is_file_hidden(entry.file_name());
+                let file_permissions = entry.metadata().ok()?.permissions().mode();
+                let size = entry.metadata().ok()?.len();
+                let created_at = system_time_to_local_date(entry.metadata().ok()?.created().ok()?);
 
-            DirectoryItemBuilder::default()
-                .name(name)
-                .is_dir(is_dir)
-                .is_hidden(is_hidden)
-                .file_permissions(mode_to_rwx(file_permissions))
-                .size(size)
-                .created_at(created_at)
-                .build()
-                .ok()
-        })
-        .collect()
+                DirectoryItemBuilder::default()
+                    .name(name)
+                    .is_dir(is_dir)
+                    .is_hidden(is_hidden)
+                    .file_permissions(mode_to_rwx(file_permissions))
+                    .created_at(created_at)
+                    .size(size)
+                    .build()
+                    .ok()
+            })
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
+
+/// Find items within a directory and subdirectories recursively
+pub fn find_directory_items_recursive(directory: &String) -> Vec<DirectoryItem> {
+    let mut all_items = Vec::new();
+    find_items_recursive(path::Path::new(directory), &mut all_items, "");
+    all_items
+}
+
+/// Helper function for recursive directory traversal
+fn find_items_recursive(dir_path: &path::Path, items: &mut Vec<DirectoryItem>, prefix: &str) {
+    if let Ok(entries) = fs::read_dir(dir_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let file_name = entry.file_name();
+
+            let name_with_prefix = if prefix.is_empty() {
+                file_name.to_string_lossy().to_string()
+            } else {
+                format!("{}/{}", prefix, file_name.to_string_lossy())
+            };
+
+            if let Ok(file_type) = entry.file_type() {
+                let is_dir = file_type.is_dir();
+                let is_hidden = is_file_hidden(file_name);
+
+                if let Ok(metadata) = entry.metadata() {
+                    let file_permissions = metadata.permissions().mode();
+                    let created_at = match metadata.created() {
+                        Ok(time) => system_time_to_local_date(time),
+                        Err(_) => chrono::Local::now().date_naive(),
+                    };
+
+                    if let Ok(item) = DirectoryItemBuilder::default()
+                        .name(name_with_prefix.clone())
+                        .is_dir(is_dir)
+                        .is_hidden(is_hidden)
+                        .file_permissions(mode_to_rwx(file_permissions))
+                        .created_at(created_at)
+                        .build()
+                    {
+                        items.push(item);
+                    }
+
+                    if is_dir {
+                        find_items_recursive(&path, items, &name_with_prefix);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]

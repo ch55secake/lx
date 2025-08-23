@@ -17,4 +17,12 @@ pub(crate) struct Args {
     /// Show all items
     #[clap(short, long, action = clap::ArgAction::SetTrue)]
     pub(crate) all: bool,
+
+    /// Filter files by pattern (supports wildcards with '*')
+    #[clap(short, long, default_value = "*")]
+    pub(crate) find: String,
+
+    /// Recursively search through subdirectories
+    #[clap(short, long, action = clap::ArgAction::SetTrue)]
+    pub(crate) recursive: bool,
 }
